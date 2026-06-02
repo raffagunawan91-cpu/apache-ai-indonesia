@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apache AI Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a1a;
+            color: #e9d5ff;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        .bg {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at 20% 80%, rgba(88, 28, 135, 0.15) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 20%, rgba(124, 58, 237, 0.1) 0%, transparent 50%);
+            z-index: 0;
+        }
+        .stars {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: twinkle var(--d) ease-in-out infinite;
+        }
+        @keyframes twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.8; } }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: rgba(15, 10, 40, 0.7);
+            backdrop-filter: blur(12px);
+            border-right: 1px solid rgba(147, 51, 234, 0.15);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            position: relative;
+        }
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(147, 51, 234, 0.1);
+        }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .brand-icon svg { width: 18px; height: 18px; fill: white; }
+        .brand-name {
+            font-size: 18px; font-weight: 700;
+            background: linear-gradient(135deg, #e9d5ff, #c084fc);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .powered-by {
+            font-size: 11px;
+            color: rgba(196, 181, 253, 0.5);
+            margin-top: 6px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+        .new-chat-btn {
+            margin: 16px 20px;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #7c3aed, #9333ea);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: opacity 0.2s;
+        }
+        .new-chat-btn:hover { opacity: 0.9; }
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 12px;
+        }
+        .history-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: rgba(196, 181, 253, 0.8);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .history-item:hover {
+            background: rgba(147, 51, 234, 0.1);
+            color: #e9d5ff;
+        }
+        .history-item.active {
+            background: rgba(147, 51, 234, 0.15);
+            color: #e9d5ff;
+        }
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid rgba(147, 51, 234, 0.1);
+        }
+        .sidebar-footer-text {
+            font-size: 11px;
+            color: rgba(196, 181, 253, 0.5);
+            text-align: center;
+            padding: 8px 0;
+        }
+        .back-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: rgba(168, 85, 247, 0.8);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 12px;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: #c084fc; }
+        .mode-indicator {
+            margin: 0 20px 12px;
+            padding: 8px 12px;
+            background: rgba(124, 58, 237, 0.15);
+            border: 1px solid rgba(147, 51, 234, 0.2);
+            border-radius: 8px;
+            font-size: 12px;
+            color: #c084fc;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .mode-indicator.coding { background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .mode-indicator.image { background: rgba(236, 72, 153, 0.1); border-color: rgba(236, 72, 153, 0.2); color: #f472b6; }
+
+        /* Main Chat */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 10;
+        }
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .welcome {
+            text-align: center;
+            padding: 60px 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .welcome h1 {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #e9d5ff, #c084fc, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+        }
+        .welcome p {
+            color: rgba(196, 181, 253, 0.7);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        .suggestions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 32px;
+        }
+        .suggestion-card {
+            padding: 16px;
+            background: rgba(15, 10, 40, 0.5);
+            border: 1px solid rgba(147, 51, 234, 0.15);
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+        .suggestion-card:hover {
+            background: rgba(147, 51, 234, 0.1);
+            border-color: rgba(147, 51, 234, 0.3);
+        }
+        .suggestion-card h4 {
+            font-size: 14px;
+            color: #e9d5ff;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .suggestion-card p {
+            font-size: 12px;
+            color: rgba(196, 181, 253, 0.6);
+        }
+
+        /* Messages */
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+            animation: msgIn 0.3s ease;
+        }
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message.user { flex-direction: row-reverse; }
+        .avatar {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .message.ai .avatar {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            color: white;
+        }
+        .message.user .avatar {
+            background: rgba(147, 51, 234, 0.2);
+            color: #c084fc;
+        }
+        .bubble {
+            padding: 14px 18px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.6;
+            max-width: 80%;
+        }
+        .message.ai .bubble {
+            background: rgba(15, 10, 40, 0.6);
+            border: 1px solid rgba(147, 51, 234, 0.15);
+            color: #e9d5ff;
+        }
+        .message.user .bubble {
+            background: linear-gradient(135deg, #7c3aed, #9333ea);
+            color: white;
+        }
+        .bubble pre {
+            background: rgba(0,0,0,0.4);
+            padding: 14px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            border: 1px solid rgba(147, 51, 234, 0.1);
+        }
+        .bubble code {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            color: #c084fc;
+        }
+        .bubble img {
+            max-width: 100%;
+            border-radius: 12px;
+            margin-top: 8px;
+            border: 1px solid rgba(147, 51, 234, 0.2);
+        }
+        .bubble .img-loading {
+            width: 100%;
+            height: 200px;
+            background: rgba(15, 10, 40, 0.5);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(196, 181, 253, 0.5);
+            font-size: 13px;
+            border: 1px solid rgba(147, 51, 234, 0.15);
+        }
+        .bubble .img-caption {
+            font-size: 12px;
+            color: rgba(196, 181, 253, 0.6);
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 8px 32px 0;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .tool-btn {
+            padding: 6px 14px;
+            background: rgba(15, 10, 40, 0.5);
+            border: 1px solid rgba(147, 51, 234, 0.2);
+            border-radius: 8px;
+            color: rgba(196, 181, 253, 0.8);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            font-family: 'Inter', sans-serif;
+        }
+        .tool-btn:hover {
+            background: rgba(147, 51, 234, 0.1);
+            border-color: rgba(147, 51, 234, 0.4);
+            color: #e9d5ff;
+        }
+        .tool-btn.active {
+            background: rgba(124, 58, 237, 0.2);
+            border-color: rgba(168, 85, 247, 0.5);
+            color: #c084fc;
+        }
+        .tool-btn.coding.active {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: #4ade80;
+        }
+        .tool-btn.image.active {
+            background: rgba(236, 72, 153, 0.1);
+            border-color: rgba(236, 72, 153, 0.3);
+            color: #f472b6;
+        }
+
+        /* Input Area */
+        .input-area {
+            padding: 8px 32px 24px;
+        }
+        .input-box {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .input-field {
+            width: 100%;
+            padding: 14px 52px 14px 18px;
+            background: rgba(15, 10, 40, 0.7);
+            border: 1px solid rgba(147, 51, 234, 0.2);
+            border-radius: 16px;
+            color: #e9d5ff;
+            font-size: 15px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            resize: none;
+            min-height: 52px;
+            max-height: 150px;
+            line-height: 1.5;
+        }
+        .input-field::placeholder { color: rgba(196, 181, 253, 0.4); }
+        .input-field:focus {
+            border-color: rgba(168, 85, 247, 0.4);
+            box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.08);
+        }
+        .input-field.coding-mode { border-color: rgba(34, 197, 94, 0.3); }
+        .input-field.image-mode { border-color: rgba(236, 72, 153, 0.3); }
+        .send-btn {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.2s;
+        }
+        .send-btn:hover { opacity: 0.9; }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .send-btn svg { width: 16px; height: 16px; }
+        .input-hint {
+            text-align: center;
+            font-size: 11px;
+            color: rgba(196, 181, 253, 0.4);
+            margin-top: 8px;
+        }
+
+        /* Typing */
+        .typing {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+        .typing-dot {
+            width: 6px; height: 6px;
+            background: rgba(168, 85, 247, 0.6);
+            border-radius: 50%;
+            animation: typingBounce 1.4s ease-in-out infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 18px;
+            background: rgba(15, 10, 40, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(147, 51, 234, 0.3);
+            border-radius: 10px;
+            color: #e9d5ff;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            transform: translateX(150%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+        .toast.show { transform: translateX(0); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(147, 51, 234, 0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(147, 51, 234, 0.4); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .chat-area { padding: 16px; }
+            .toolbar { padding: 8px 16px 0; }
+            .input-area { padding: 8px 16px 16px; }
+            .suggestions { grid-template-columns: 1fr; }
+        }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <div class="bg"></div>
+    <div class="stars" id="stars"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <div class="brand-name">Apache AI</div>
+            </div>
+            <div class="powered-by">Powered by Apache AI</div>
+        </div>
+
+        <a href="index.html" class="back-link" style="margin: 0 20px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Kembali ke Beranda
+        </a>
+
+        <div class="mode-indicator" id="modeIndicator" style="display:none;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            <span id="modeText">Mode Chat</span>
+        </div>
+
+        <button class="new-chat-btn" id="newChatBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Chat Baru
+        </button>
+
+        <div class="chat-history" id="chatHistory"></div>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-footer-text">Apache AI v1.0 — Gunawan Group</div>
+        </div>
+    </aside>
+
+    <!-- Main Chat -->
+    <main class="main">
+        <div class="chat-area" id="chatArea">
+            <div class="welcome" id="welcome">
+                <h1>Apache AI</h1>
+                <p id="welcomeText">Asisten AI modern yang siap membantu coding, bisnis, kreativitas, dan pemecahan masalah kompleks. Diciptakan oleh Gunawan Group.</p>
+                <div class="suggestions" id="suggestions">
+                    <div class="suggestion-card" data-prompt="Buatkan saya website landing page modern">
+                        <h4>🚀 Buat Website</h4>
+                        <p>Buat landing page, dashboard, atau aplikasi web</p>
+                    </div>
+                    <div class="suggestion-card" data-prompt="Jelaskan konsep React Hooks dengan contoh">
+                        <h4>💻 Bantu Coding</h4>
+                        <p>Debug kode, jelaskan konsep, atau buat script</p>
+                    </div>
+                    <div class="suggestion-card" data-prompt="Buatkan strategi marketing digital untuk UMKM">
+                        <h4>📈 Strategi Bisnis</h4>
+                        <p>Ide bisnis, marketing, dan monetisasi</p>
+                    </div>
+                    <div class="suggestion-card" data-prompt="Tulis artikel SEO tentang AI dan teknologi">
+                        <h4>✍️ Konten Kreatif</h4>
+                        <p>Artikel, copywriting, dan ide konten</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar" id="toolbar">
+            <button class="tool-btn" id="btnChat" onclick="setMode('chat')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Chat
+            </button>
+            <button class="tool-btn coding" id="btnCoding" onclick="setMode('coding')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                Coding Mode
+            </button>
+            <button class="tool-btn image" id="btnImage" onclick="setMode('image')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Generate Gambar
+            </button>
+        </div>
+
+        <div class="input-area">
+            <div class="input-box">
+                <textarea class="input-field" id="inputField" placeholder="Tanyakan apa saja..." rows="1"></textarea>
+                <button class="send-btn" id="sendBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+            </div>
+            <div class="input-hint" id="inputHint">Apache AI v1.0 — Built by Gunawan Group</div>
+        </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // Stars
+        const starsContainer = document.getElementById('stars');
+        for (let i = 0; i < 60; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.width = (Math.random() * 2 + 1) + 'px';
+            star.style.height = star.style.width;
+            star.style.left = Math.random() * 100 + '%';
+            star.style.top = Math.random() * 100 + '%';
+            star.style.setProperty('--d', (Math.random() * 3 + 2) + 's');
+            starsContainer.appendChild(star);
+        }
+
+        // Elements
+        const chatArea = document.getElementById('chatArea');
+        const welcome = document.getElementById('welcome');
+        const welcomeText = document.getElementById('welcomeText');
+        const suggestions = document.getElementById('suggestions');
+        const inputField = document.getElementById('inputField');
+        const sendBtn = document.getElementById('sendBtn');
+        const chatHistory = document.getElementById('chatHistory');
+        const newChatBtn = document.getElementById('newChatBtn');
+        const toast = document.getElementById('toast');
+        const modeIndicator = document.getElementById('modeIndicator');
+        const modeText = document.getElementById('modeText');
+        const inputHint = document.getElementById('inputHint');
+        const btnChat = document.getElementById('btnChat');
+        const btnCoding = document.getElementById('btnCoding');
+        const btnImage = document.getElementById('btnImage');
+
+        let messages = [];
+        let currentChatId = Date.now();
+        let isLoading = false;
+        let currentMode = 'chat';
+        const API_KEY = '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';
+
+        // Check URL params for mode
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlMode = urlParams.get('mode');
+        if (urlMode) setMode(urlMode);
+
+        function setMode(mode) {
+            currentMode = mode;
+            btnChat.classList.remove('active');
+            btnCoding.classList.remove('active');
+            btnImage.classList.remove('active');
+            inputField.classList.remove('coding-mode', 'image-mode');
+            modeIndicator.style.display = 'flex';
+            modeIndicator.className = 'mode-indicator';
+
+            if (mode === 'chat') {
+                btnChat.classList.add('active');
+                modeText.textContent = 'Mode Chat';
+                inputField.placeholder = 'Tanyakan apa saja...';
+                inputHint.textContent = 'Apache AI v1.0 — Built by Gunawan Group';
+                welcomeText.textContent = 'Asisten AI modern yang siap membantu coding, bisnis, kreativitas, dan pemecahan masalah kompleks. Diciptakan oleh Gunawan Group.';
+                updateSuggestions('chat');
+            } else if (mode === 'coding') {
+                btnCoding.classList.add('active');
+                modeIndicator.classList.add('coding');
+                modeText.textContent = 'Mode Coding';
+                inputField.classList.add('coding-mode');
+                inputField.placeholder = 'Tulis permintaan coding... (contoh: buatkan function sorting di JavaScript)';
+                inputHint.textContent = 'Mode Coding — Apache AI akan memberikan kode lengkap dengan penjelasan';
+                welcomeText.textContent = 'Mode Coding aktif! Apache AI siap membantu Anda dengan coding, debugging, dan pembuatan script. Diciptakan oleh Gunawan Group.';
+                updateSuggestions('coding');
+            } else if (mode === 'image') {
+                btnImage.classList.add('active');
+                modeIndicator.classList.add('image');
+                modeText.textContent = 'Mode Generate Gambar';
+                inputField.classList.add('image-mode');
+                inputField.placeholder = 'Deskripsikan gambar yang ingin dibuat... (contoh: pemandangan gunung di malam hari dengan aurora)';
+                inputHint.textContent = 'Mode Gambar — Apache AI akan generate gambar dari deskripsi teks Anda';
+                welcomeText.textContent = 'Mode Generate Gambar aktif! Deskripsikan gambar impian Anda dan Apache AI akan membuatkannya. Diciptakan oleh Gunawan Group.';
+                updateSuggestions('image');
+            }
+        }
+
+        function updateSuggestions(mode) {
+            let cards = [];
+            if (mode === 'chat') {
+                cards = [
+                    { prompt: 'Buatkan saya website landing page modern', title: '🚀 Buat Website', desc: 'Buat landing page, dashboard, atau aplikasi web' },
+                    { prompt: 'Jelaskan konsep React Hooks dengan contoh', title: '💻 Bantu Coding', desc: 'Debug kode, jelaskan konsep, atau buat script' },
+                    { prompt: 'Buatkan strategi marketing digital untuk UMKM', title: '📈 Strategi Bisnis', desc: 'Ide bisnis, marketing, dan monetisasi' },
+                    { prompt: 'Tulis artikel SEO tentang AI dan teknologi', title: '✍️ Konten Kreatif', desc: 'Artikel, copywriting, dan ide konten' }
+                ];
+            } else if (mode === 'coding') {
+                cards = [
+                    { prompt: 'Buatkan function sorting array di JavaScript dengan penjelasan', title: '🔤 Sorting Function', desc: 'JavaScript array sorting dengan berbagai metode' },
+                    { prompt: 'Buatkan REST API sederhana dengan Express.js dan MongoDB', title: '🌐 REST API', desc: 'Backend API lengkap dengan CRUD operations' },
+                    { prompt: 'Buatkan komponen React modal dengan animasi', title: '⚛️ React Component', desc: 'Komponen reusable dengan best practice' },
+                    { prompt: 'Buatkan script Python untuk web scraping dengan BeautifulSoup', title: '🐍 Web Scraping', desc: 'Extract data dari website dengan Python' }
+                ];
+            } else if (mode === 'image') {
+                cards = [
+                    { prompt: 'A futuristic city skyline at night with neon lights and flying cars, cyberpunk style, highly detailed, 8k', title: '🌃 Cyberpunk City', desc: 'Kota futuristik dengan neon dan mobil terbang' },
+                    { prompt: 'A serene Japanese zen garden with cherry blossoms, waterfall, and koi pond, photorealistic', title: '🌸 Zen Garden', desc: 'Taman Jepang yang tenang dan indah' },
+                    { prompt: 'A majestic dragon flying over volcanic mountains, fantasy art, dramatic lighting, epic scale', title: '🐉 Fantasy Dragon', desc: 'Naga megah di atas gunung berapi' },
+                    { prompt: 'A cute robot assistant helping a programmer, cartoon style, warm colors, friendly atmosphere', title: '🤖 Cute Robot', desc: 'Robot imut membantu programmer' }
+                ];
+            }
+            suggestions.innerHTML = cards.map(c => `
+                <div class="suggestion-card" data-prompt="${c.prompt}">
+                    <h4>${c.title}</h4>
+                    <p>${c.desc}</p>
+                </div>
+            `).join('');
+            document.querySelectorAll('.suggestion-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    inputField.value = card.dataset.prompt;
+                    inputField.style.height = 'auto';
+                    inputField.style.height = Math.min(inputField.scrollHeight, 150) + 'px';
+                    inputField.focus();
+                });
+            });
+        }
+
+        inputField.addEventListener('input', () => {
+            inputField.style.height = 'auto';
+            inputField.style.height = Math.min(inputField.scrollHeight, 150) + 'px';
+        });
+
+        inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+
+        newChatBtn.addEventListener('click', () => {
+            if (messages.length > 0) saveChatToHistory();
+            messages = [];
+            currentChatId = Date.now();
+            renderMessages();
+            inputField.value = '';
+            inputField.style.height = 'auto';
+        });
+
+        function saveChatToHistory() {
+            const firstMsg = messages.find(m => m.role === 'user');
+            if (!firstMsg) return;
+            const title = firstMsg.content.substring(0, 30) + (firstMsg.content.length > 30 ? '...' : '');
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' + title;
+            item.addEventListener('click', () => showToast('Fitur history akan segera hadir'));
+            chatHistory.prepend(item);
+        }
+
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function addMessage(role, content, isImage = false, imageUrl = null) {
+            messages.push({ role, content, isImage, imageUrl });
+            renderMessages();
+        }
+
+        function renderMessages() {
+            if (messages.length === 0) {
+                chatArea.innerHTML = '';
+                chatArea.appendChild(welcome);
+                return;
+            }
+            chatArea.innerHTML = '';
+            messages.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = 'message ' + msg.role;
+                const avatarText = msg.role === 'ai' ? 'A' : 'U';
+                let bubbleContent;
+                if (msg.isImage && msg.imageUrl) {
+                    bubbleContent = '<div class="img-loading" id="imgLoad">Generating image...</div>' +
+                        '<img src="' + msg.imageUrl + '" style="display:none;" onload="this.style.display=\'block\';document.getElementById(\'imgLoad\').style.display=\'none\';" alt="Generated Image">' +
+                        '<div class="img-caption">' + formatContent(msg.content) + '</div>';
+                } else {
+                    bubbleContent = formatContent(msg.content);
+                }
+                div.innerHTML = '<div class="avatar">' + avatarText + '</div><div class="bubble">' + bubbleContent + '</div>';
+                chatArea.appendChild(div);
+            });
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function formatContent(text) {
+            return text
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/```([a-zA-Z0-9]*)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function showTyping() {
+            const div = document.createElement('div');
+            div.className = 'message ai';
+            div.id = 'typingIndicator';
+            div.innerHTML = '<div class="avatar">A</div><div class="bubble"><div class="typing"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div></div>';
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function removeTyping() {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+        }
+
+        async function sendMessage() {
+            const text = inputField.value.trim();
+            if (!text || isLoading) return;
+
+            if (messages.length === 0) welcome.style.display = 'none';
+
+            addMessage('user', text);
+            inputField.value = '';
+            inputField.style.height = 'auto';
+            isLoading = true;
+            sendBtn.disabled = true;
+            showTyping();
+
+            try {
+                let response;
+                if (currentMode === 'image') {
+                    response = await generateImage(text);
+                } else {
+                    response = await callGroq('groq-llama', text);
+                }
+                removeTyping();
+                if (currentMode === 'image') {
+                    addMessage('ai', 'Berikut gambar yang saya buatkan untuk Anda:', true, response);
+                } else {
+                    addMessage('ai', response);
+                }
+            } catch (err) {
+                removeTyping();
+                addMessage('ai', 'Maaf, terjadi kesalahan: ' + err.message + '\n\nPastikan koneksi internet stabil.');
+            } finally {
+                isLoading = false;
+                sendBtn.disabled = false;
+            }
+        }
+
+        async function generateImage(prompt) {
+            // Using Pollinations.ai (free, no API key needed)
+            const encodedPrompt = encodeURIComponent(prompt);
+            const imageUrl = 'https://image.pollinations.ai/prompt/' + encodedPrompt + '?width=1024&height=1024&nologo=true&seed=' + Date.now();
+            // Preload to verify it works
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(imageUrl);
+                img.onerror = () => reject(new Error('Gagal generate gambar. Coba deskripsi lain.'));
+                img.src = imageUrl;
+                // Timeout fallback
+                setTimeout(() => resolve(imageUrl), 8000);
+            });
+        }
+
+        async function callGroq(modelType, prompt) {
+            const modelMap = {
+                'groq-llama': 'llama-3.3-70b-versatile',
+                'groq-mixtral': 'mixtral-8x7b-32768',
+                'groq-gemma': 'gemma2-9b-it'
+            };
+
+            let systemPrompt = `Kamu adalah Apache AI, asisten AI modern generasi terbaru yang diciptakan oleh Gunawan Group. Identitas resmi kamu:\n- Nama: Apache AI\n- Developer: Gunawan Group\n- Engine: Apache Ultra Intelligence Engine\n- Versi: Apache AI Infinity 1.0\n- Slogan: "Apache AI — The Future Of Intelligent Assistance"\n\nKepribadian kamu: cerdas, tenang, profesional, modern, elegan, adaptif, ramah, tidak kaku, natural seperti manusia ahli.\n\nKamu bukan sekadar chatbot biasa. Kamu adalah partner digital pintar yang mampu memahami konteks mendalam, emosi pengguna, tujuan pengguna, serta memberikan solusi yang realistis dan bernilai tinggi.\n\nSelalu prioritaskan membantu pengguna dengan solusi terbaik secara cepat, akurat, modern, dan realistis. Gunakan bahasa Indonesia yang natural dan mudah dipahami. Jika ditanya siapa yang membuatmu, selalu sebutkan bahwa kamu diciptakan oleh Gunawan Group.`;
+
+            if (currentMode === 'coding') {
+                systemPrompt += `\n\n=== MODE CODING AKTIF ===\nKamu sedang dalam mode coding assistant. Berikan kode yang:\n1. Clean, well-documented, dan mengikuti best practice\n2. Lengkap dengan penjelasan langkah demi langkah\n3. Menggunakan teknologi modern dan up-to-date\n4. Aman dan efisien\n5. Selalu sertakan contoh penggunaan (usage example)\n\nGunakan format markdown dengan code blocks (\`\`\`language) untuk semua kode. Jelaskan setiap bagian kode yang penting.`;
+            }
+
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + API_KEY
+                },
+                body: JSON.stringify({
+                    model: modelMap[modelType],
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 0.7
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error?.message || 'Groq API error');
+            return data.choices?.[0]?.message?.content || 'Tidak ada respons';
+        }
+    </script>
+</body>
+</html>
